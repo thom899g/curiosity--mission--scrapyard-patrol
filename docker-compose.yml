@@ -1,0 +1,51 @@
+version: '3.8'
+services:
+  core-app:
+    build: .
+    container_name: micro-acquisition-core
+    restart: unless-stopped
+    env_file:
+      - .env.core
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./serviceAccountKey.json:/app/serviceAccountKey.json:ro
+    ports:
+      - "8000:8000"  # Micro-SaaS API
+      - "5001:5001"  # Health/metrics endpoint
+    depends_on:
+      - vault-service
+    networks:
+      - micro-net
+    command: python -u main.py
+
+  vault-service:
+    build:
+      context: ./vault
+      dockerfile: Dockerfile.vault
+    container_name: vault-service
+    restart: unless-stopped
+    env_file:
+      - .env.vault
+    volumes:
+      - ./vault/encrypted_keys:/app/encrypted_keys:ro
+    ports:
+      - "5000:5000"
+    networks:
+      - micro-net
+    command: python -u vault_server.py
+
+  proxy-service:
+    image: ghcr.io/nginx-proxy/nginx-proxy:latest
+    container_name: proxy-service
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    networks:
+      - micro-net
+
+networks:
+  micro-net:
+    driver: bridge
